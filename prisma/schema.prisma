@@ -1,0 +1,293 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Модель пользователя
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  role      UserRole @default(USER)
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Связи
+  projects      ProjectMember[]
+  assignedTasks Task[]
+  createdTasks  Task[]       @relation("TaskCreator")
+  comments      Comment[]
+  aiChats       AIChat[]
+  aiSettings    AISettings?
+  timeLogs      TimeLog[]
+
+  @@map("users")
+}
+
+// Роли пользователей
+enum UserRole {
+  ADMIN
+  MANAGER
+  USER
+}
+
+// Модель проекта
+model Project {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Связи
+  members     ProjectMember[]
+  tasks       Task[]
+  tags        ProjectTag[]
+  categories  ProjectCategory[]
+  aiChats     AIChat[]
+
+  @@map("projects")
+}
+
+// Статусы проекта
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+// Модель участника проекта
+model ProjectMember {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  role      MemberRole @default(MEMBER)
+  joinedAt  DateTime @default(now())
+
+  // Связи
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@map("project_members")
+}
+
+// Роли участника проекта
+enum MemberRole {
+  OWNER
+  MANAGER
+  MEMBER
+}
+
+// Модель задачи
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  projectId   String
+  assigneeId  String?
+  creatorId   String
+  dueDate     DateTime?
+  startDate   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Связи
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee    User?       @relation(fields: [assigneeId], references: [id])
+  creator     User        @relation("TaskCreator", fields: [creatorId], references: [id])
+  subtasks    Task[]      @relation("Subtask")
+  parentTask  Task?       @relation("Subtask", fields: [parentTaskId], references: [id])
+  parentTaskId String?
+  comments    Comment[]
+  tags        TaskTag[]
+  timeLogs    TimeLog[]
+  aiChats     AIChat[]
+
+  @@map("tasks")
+}
+
+// Статусы задачи
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  CANCELLED
+}
+
+// Приоритеты задачи
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// Модель комментария
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  taskId    String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Связи
+  task    Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author  User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+// Модель тега
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String?
+  createdAt DateTime @default(now())
+
+  // Связи
+  projectTags ProjectTag[]
+  taskTags    TaskTag[]
+
+  @@map("tags")
+}
+
+// Связь проекта с тегами
+model ProjectTag {
+  id       String @id @default(cuid())
+  projectId String
+  tagId    String
+
+  // Связи
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, tagId])
+  @@map("project_tags")
+}
+
+// Связь задачи с тегами
+model TaskTag {
+  id    String @id @default(cuid())
+  taskId String
+  tagId String
+
+  // Связи
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag  Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, tagId])
+  @@map("task_tags")
+}
+
+// Модель категории
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+
+  // Связи
+  projectCategories ProjectCategory[]
+
+  @@unique([name])
+  @@map("categories")
+}
+
+// Связь проекта с категориями
+model ProjectCategory {
+  id         String @id @default(cuid())
+  projectId  String
+  categoryId String
+
+  // Связи
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, categoryId])
+  @@map("project_categories")
+}
+
+// Модель учета времени
+model TimeLog {
+  id          String   @id @default(cuid())
+  taskId      String
+  userId      String
+  description String?
+  hours       Float
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  // Связи
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("time_logs")
+}
+
+// Модель AI чата
+model AIChat {
+  id        String   @id @default(cuid())
+  projectId String?
+  taskId    String?
+  userId    String
+  title     String?
+  messages  Json     // Массив сообщений в формате JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Связи
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ai_chats")
+}
+
+// Модель настроек AI-подключения
+model AISettings {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  provider  AIProvider @default(Z_AI)
+  baseUrl   String?  // Базовый URL для локальных моделей (LM Studio)
+  model     String?  // Название модели
+  apiKey    String?  // API ключ для облачных сервисов
+  maxTokens Int      @default(1000)
+  temperature Float  @default(0.7)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Связи
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ai_settings")
+}
+
+// Провайдеры AI
+enum AIProvider {
+  Z_AI        // z-ai-web-dev-sdk (по умолчанию)
+  LM_STUDIO   // Локальный LM Studio
+  OPENAI      // OpenAI API
+  ANTHROPIC   // Anthropic Claude
+  CUSTOM      // Кастомный API
+}
