@@ -3,9 +3,9 @@ import { z } from 'zod';
 // Схема для настроек AI
 const aiSettingsSchema = z.object({
   provider: z.enum(['Z_AI', 'LM_STUDIO', 'OPENAI', 'ANTHROPIC', 'CUSTOM']),
-  baseUrl: z.string().optional(),
-  model: z.string().optional(),
-  apiKey: z.string().optional(),
+  baseUrl: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  apiKey: z.string().nullable().optional(),
   maxTokens: z.number(),
   temperature: z.number(),
   enabled: z.boolean(),

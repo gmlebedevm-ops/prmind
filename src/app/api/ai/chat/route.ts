@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
-import { generateAIResponse } from '@/lib/ai-providers';
+import { generateAIResponse, AISettings } from '@/lib/ai-providers';
 
 const chatSchema = z.object({
   message: z.string().min(1, 'Сообщение обязательно'),
-  projectId: z.string().optional(),
-  taskId: z.string().optional(),
-  chatId: z.string().optional(),
+  projectId: z.string().nullable().optional(),
+  taskId: z.string().nullable().optional(),
+  chatId: z.string().nullable().optional(),
 });
 
 interface ChatMessage {
@@ -16,11 +16,35 @@ interface ChatMessage {
   content: string;
 }
 
+// Функция для преобразования настроек из базы данных в формат AISettings
+function convertDbSettingsToAISettings(dbSettings: any): AISettings {
+  return {
+    provider: dbSettings.provider,
+    baseUrl: dbSettings.baseUrl,
+    model: dbSettings.model,
+    apiKey: dbSettings.apiKey,
+    maxTokens: dbSettings.maxTokens,
+    temperature: dbSettings.temperature,
+    enabled: dbSettings.enabled,
+  };
+}
+
 export async function POST(request: NextRequest) {
   return await requireAuth(request, async (request: NextRequest, user) => {
     try {
       const body = await request.json();
-      const { message, projectId, taskId, chatId } = chatSchema.parse(body);
+      console.log('Получен запрос к AI чату:', JSON.stringify(body, null, 2));
+      
+      // Преобразуем пустые строки в null для projectId и taskId
+      const processedBody = {
+        ...body,
+        projectId: body.projectId || null,
+        taskId: body.taskId || null,
+        chatId: body.chatId || null,
+      };
+      
+      const { message, projectId, taskId, chatId } = chatSchema.parse(processedBody);
+      console.log('Валидация пройдена:', { message, projectId, taskId, chatId });
 
       // Проверяем доступ к проекту/задаче
       if (projectId) {
@@ -67,6 +91,8 @@ export async function POST(request: NextRequest) {
       let aiSettings = await db.aISettings.findUnique({
         where: { userId: user.id },
       });
+      
+      console.log('Текущие настройки AI:', aiSettings);
 
       // Если настроек нет, создаем настройки по умолчанию
       if (!aiSettings) {
@@ -79,6 +105,7 @@ export async function POST(request: NextRequest) {
             enabled: true,
           },
         });
+        console.log('Созданы настройки по умолчанию:', aiSettings);
       }
 
       // Проверяем, включен ли AI
@@ -88,6 +115,10 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+
+      // Преобразуем настройки в правильный формат
+      const convertedSettings = convertDbSettingsToAISettings(aiSettings);
+      console.log('Преобразованные настройки:', JSON.stringify(convertedSettings, null, 2));
 
       // Получаем или создаем чат
       let aiChat;
@@ -172,8 +203,14 @@ export async function POST(request: NextRequest) {
       });
 
       try {
+        console.log('Начало генерации AI ответа...');
+        console.log('Используемые настройки:', JSON.stringify(convertedSettings, null, 2));
+        console.log('Сообщения для AI:', JSON.stringify(messages, null, 2));
+        
         // Используем новую систему провайдеров
-        const aiResponse = await generateAIResponse(aiSettings, messages);
+        const aiResponse = await generateAIResponse(convertedSettings, messages);
+        
+        console.log('AI ответ получен:', JSON.stringify(aiResponse, null, 2));
 
         // Добавляем ответ ассистента
         messages.push({
@@ -198,6 +235,7 @@ export async function POST(request: NextRequest) {
         });
       } catch (aiError) {
         console.error('Ошибка AI:', aiError);
+        console.error('Детали ошибки AI:', JSON.stringify(aiError, null, 2));
         
         // В случае ошибки AI, возвращаем запасной ответ
         const fallbackMessage = 'Извините, произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте еще раз позже.';
@@ -222,6 +260,7 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error('Ошибка валидации Zod:', JSON.stringify(error.errors, null, 2));
         return NextResponse.json(
           { error: 'Ошибка валидации', details: error.errors },
           { status: 400 }

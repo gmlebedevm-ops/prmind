@@ -6,7 +6,7 @@ import { z } from 'zod';
 const settingsSchema = z.object({
   provider: z.enum(['Z_AI', 'LM_STUDIO', 'OPENAI', 'ANTHROPIC', 'CUSTOM']).optional(),
   baseUrl: z.string().url('Неверный формат URL').optional().or(z.literal('')),
-  model: z.string().min(1, 'Название модели обязательно').optional(),
+  model: z.string().optional(),
   apiKey: z.string().optional(),
   maxTokens: z.number().min(1, 'Минимальное количество токенов - 1').max(8000, 'Максимальное количество токенов - 8000').optional(),
   temperature: z.number().min(0, 'Температура не может быть отрицательной').max(2, 'Температура не может превышать 2').optional(),
@@ -50,7 +50,10 @@ export async function PUT(request: NextRequest) {
   return await requireAuth(request, async (request: NextRequest, user) => {
     try {
       const body = await request.json();
+      console.log('Полученные данные для сохранения настроек AI:', JSON.stringify(body, null, 2));
+      
       const validatedData = settingsSchema.parse(body);
+      console.log('Валидированные данные:', JSON.stringify(validatedData, null, 2));
 
       // Проверяем, что baseUrl указан для LM Studio и CUSTOM
       if ((validatedData.provider === 'LM_STUDIO' || validatedData.provider === 'CUSTOM') && !validatedData.baseUrl) {
@@ -82,12 +85,15 @@ export async function PUT(request: NextRequest) {
         },
       });
 
+      console.log('Сохраненные настройки в базе данных:', JSON.stringify(settings, null, 2));
+
       return NextResponse.json({
         message: 'Настройки успешно обновлены',
         settings,
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error('Ошибка валидации настроек AI:', JSON.stringify(error.errors, null, 2));
         return NextResponse.json(
           { error: 'Ошибка валидации', details: error.errors },
           { status: 400 }
