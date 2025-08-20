@@ -45,7 +45,7 @@ export default function CreateTaskPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId');
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,11 +71,22 @@ export default function CreateTaskPage() {
   const selectedProjectId = watch('projectId');
 
   useEffect(() => {
-    if (user?.id) {
-      fetchProjects();
-      fetchUsers();
+    const loadData = async () => {
+      if (user?.id) {
+        await Promise.all([
+          fetchProjects(),
+          fetchUsers()
+        ]);
+        setLoadingData(false);
+      }
+    };
+    
+    if (!authLoading && user) {
+      loadData();
+    } else if (!authLoading && !user) {
+      setLoadingData(false);
     }
-  }, [user?.id]);
+  }, [user?.id, authLoading]);
 
   useEffect(() => {
     if (projectId) {
@@ -145,13 +156,19 @@ export default function CreateTaskPage() {
         throw new Error('Пользователь не аутентифицирован');
       }
       
+      // Преобразуем "unassigned" в пустую строку для assigneeId
+      const processedData = {
+        ...data,
+        assigneeId: data.assigneeId === 'unassigned' ? null : data.assigneeId,
+      };
+      
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-User-ID': user.id,
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(processedData),
       });
 
       const result = await response.json();
@@ -168,12 +185,14 @@ export default function CreateTaskPage() {
     }
   };
 
-  if (loadingData) {
+  if (authLoading || loadingData) {
     return (
       <ProtectedRoute>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-        </div>
+        <AppLayout>
+          <div className="flex items-center justify-center min-h-[50vh]">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </AppLayout>
       </ProtectedRoute>
     );
   }
@@ -277,7 +296,7 @@ export default function CreateTaskPage() {
                           <SelectValue placeholder="Выберите исполнителя" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Без исполнителя</SelectItem>
+                          <SelectItem value="unassigned">Без исполнителя</SelectItem>
                           {users.map((user) => (
                             <SelectItem key={user.id} value={user.id}>
                               {user.name || user.email}

@@ -5,6 +5,10 @@ import { Header } from './header';
 import { Sidebar } from './sidebar';
 import { useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { useAIChat } from '@/hooks/use-ai-chat';
+import { useAIChatFullscreen } from '@/hooks/use-ai-chat-fullscreen';
+import { AIChatDialog } from '@/components/ai/ai-chat-dialog';
+import { AIChatFullscreen } from '@/components/ai/ai-chat-fullscreen';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -13,6 +17,8 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isOpen, openChat, closeChat } = useAIChat();
+  const { isOpen: isFullscreenOpen, openChat: openFullscreenChat, closeChat: closeFullscreenChat } = useAIChatFullscreen();
 
   // Закрывать боковое меню при изменении размера окна для десктопа
   useEffect(() => {
@@ -34,12 +40,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Sidebar 
           isOpen={sidebarOpen} 
           onClose={() => setSidebarOpen(false)}
+          onOpenAIChat={openFullscreenChat}
           user={user}
         />
         
         {/* Основной контент */}
         <div className="flex-1 lg:ml-64">
-          <main className="min-h-[calc(100vh-4rem)]">
+          <main className="h-[calc(100vh-4rem)] overflow-hidden">
             {/* Мобильный оверлей для контента при открытом меню */}
             {sidebarOpen && (
               <div 
@@ -47,10 +54,23 @@ export function AppLayout({ children }: AppLayoutProps) {
                 onClick={() => setSidebarOpen(false)}
               />
             )}
-            {children}
+            
+            {/* Показываем либо основной контент, либо полноэкранный чат */}
+            {isFullscreenOpen ? (
+              <AIChatFullscreen
+                onClose={closeFullscreenChat}
+              />
+            ) : (
+              <div className="h-full overflow-auto">
+                {children}
+              </div>
+            )}
           </main>
         </div>
       </div>
+
+      {/* AI Chat Dialog (старый модальный вариант) */}
+      <AIChatDialog open={isOpen} onOpenChange={closeChat} />
     </div>
   );
 }

@@ -1,15 +1,27 @@
 'use client';
 
-import { useAuth } from '@/hooks/use-auth';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Users, Calendar, CheckCircle, BarChart3, Calendar as CalendarIcon, GanttChart, LogIn, Settings, ListTodo, Clock, Target, FolderOpen } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { ProtectedRoute } from '@/components/auth/protected-route';
-import { AIAssistant } from '@/components/ai/ai-assistant';
 import { AppLayout } from '@/components/layout/app-layout';
+import { useAuth } from '@/hooks/use-auth';
+import { 
+  Plus, 
+  Search, 
+  Users, 
+  Calendar as CalendarIcon, 
+  CheckCircle, 
+  Clock, 
+  Target, 
+  ListTodo,
+  Filter,
+  ArrowLeft,
+  Loader2
+} from 'lucide-react';
 import Link from 'next/link';
 
 interface Project {
@@ -70,11 +82,14 @@ const formatDate = (dateString?: string) => {
   });
 };
 
-export default function Home() {
-  const { user, loading, logout } = useAuth();
+export default function ProjectsPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
     if (user) {
@@ -82,14 +97,14 @@ export default function Home() {
     }
   }, [user]);
 
+  useEffect(() => {
+    filterProjects();
+  }, [projects, searchTerm, statusFilter]);
+
   const fetchProjects = async () => {
+    if (!user?.id) return;
+    
     try {
-      // Используем только user.id из контекста аутентификации
-      if (!user?.id) {
-        console.error('No user available for fetchProjects');
-        return;
-      }
-      
       const response = await fetch('/api/projects', {
         headers: {
           'X-User-ID': user.id,
@@ -99,14 +114,34 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json();
         setProjects(data.projects);
+        setFilteredProjects(data.projects);
       } else {
         console.error('Failed to fetch projects:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Ошибка загрузки проектов:', error);
     } finally {
-      setProjectsLoading(false);
+      setLoading(false);
     }
+  };
+
+  const filterProjects = () => {
+    let filtered = [...projects];
+
+    // Поиск по названию и описанию
+    if (searchTerm) {
+      filtered = filtered.filter(project =>
+        project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+    }
+
+    // Фильтр по статусу
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(project => project.status === statusFilter);
+    }
+
+    setFilteredProjects(filtered);
   };
 
   const handleCreateProject = () => {
@@ -117,113 +152,52 @@ export default function Home() {
     router.push(`/projects/${projectId}`);
   };
 
+  const getStatusCounts = () => {
+    const counts = {
+      all: projects.length,
+      PLANNING: 0,
+      ACTIVE: 0,
+      ON_HOLD: 0,
+      COMPLETED: 0,
+      CANCELLED: 0,
+    };
+
+    projects.forEach(project => {
+      counts[project.status]++;
+    });
+
+    return counts;
+  };
+
+  const statusCounts = getStatusCounts();
+
   // Показываем загрузку во время проверки аутентификации
-  if (loading) {
+  if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Загрузка ProjectMind...</p>
-        </div>
-      </div>
+      <ProtectedRoute>
+        <AppLayout>
+          <div className="flex items-center justify-center min-h-[50vh]">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </AppLayout>
+      </ProtectedRoute>
     );
   }
 
-  // Если пользователь не аутентифицирован, показываем страницу приветствия
-  if (!user) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-8 p-4 bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center max-w-2xl">
-          <div className="mb-8">
-            <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              ProjectMind
-            </h1>
-            <p className="text-2xl text-muted-foreground mb-8">
-              Управление проектами с AI-ассистентом
-            </p>
-            <div className="space-y-4 text-left max-w-md mx-auto mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span className="text-sm">Интеллектуальное управление задачами</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <span className="text-sm">Визуализация проектов и сроков</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm">Аналитика и отчетность</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                <span className="text-sm">Интеграция с AI-ассистентом</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/auth">
-              <Button size="lg" className="w-full sm:w-auto">
-                <LogIn className="mr-2 h-5 w-5" />
-                Войти в систему
-              </Button>
-            </Link>
-            <Button size="lg" variant="outline" className="w-full sm:w-auto">
-              Узнать больше
-            </Button>
-          </div>
-        </div>
-        
-        {/* Демо-аккаунты */}
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-lg">Демо-доступ</CardTitle>
-            <CardDescription>
-              Используйте эти учетные данные для тестирования
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <p className="font-medium text-sm">Администратор</p>
-                <p className="text-xs text-muted-foreground">admin@example.com / password123</p>
-              </div>
-              <div className="p-3 bg-green-50 rounded-lg">
-                <p className="font-medium text-sm">Менеджер</p>
-                <p className="text-xs text-muted-foreground">manager@example.com / password123</p>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-lg">
-                <p className="font-medium text-sm">Пользователь</p>
-                <p className="text-xs text-muted-foreground">user@example.com / password123</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Если пользователь аутентифицирован, показываем дашборд
   return (
     <ProtectedRoute>
       <AppLayout>
-        {/* Main Content */}
         <div className="container mx-auto px-4 py-8">
+          {/* Заголовок и действия */}
           <div className="mb-8">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-3xl font-bold mb-2">Мои проекты</h2>
+                <h1 className="text-3xl font-bold mb-2">Все проекты</h1>
                 <p className="text-muted-foreground">
-                  Управляйте вашими проектами и задачами
+                  Управляйте всеми вашими проектами
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Link href="/projects">
-                  <Button variant="outline">
-                    <FolderOpen className="mr-2 h-4 w-4" />
-                    Все проекты
-                  </Button>
-                </Link>
                 <Link href="/tasks">
                   <Button variant="outline">
                     <ListTodo className="mr-2 h-4 w-4" />
@@ -236,11 +210,55 @@ export default function Home() {
                 </Button>
               </div>
             </div>
+
+            {/* Поиск и фильтры */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Поиск проектов..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant={statusFilter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setStatusFilter('all')}
+                >
+                  Все ({statusCounts.all})
+                </Button>
+                <Button
+                  variant={statusFilter === 'PLANNING' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setStatusFilter('PLANNING')}
+                >
+                  Планирование ({statusCounts.PLANNING})
+                </Button>
+                <Button
+                  variant={statusFilter === 'ACTIVE' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setStatusFilter('ACTIVE')}
+                >
+                  Активные ({statusCounts.ACTIVE})
+                </Button>
+                <Button
+                  variant={statusFilter === 'COMPLETED' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setStatusFilter('COMPLETED')}
+                >
+                  Завершенные ({statusCounts.COMPLETED})
+                </Button>
+              </div>
+            </div>
           </div>
 
-          {projectsLoading ? (
+          {/* Список проектов */}
+          {loading ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {[...Array(3)].map((_, i) => (
+              {[...Array(6)].map((_, i) => (
                 <Card key={i} className="animate-pulse h-full flex flex-col">
                   <CardHeader className="pb-3 flex-shrink-0">
                     <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -269,25 +287,32 @@ export default function Home() {
                 </Card>
               ))}
             </div>
-          ) : projects.length === 0 ? (
+          ) : filteredProjects.length === 0 ? (
             <div className="text-center py-12">
               <div className="mb-4">
                 <div className="w-16 h-16 mx-auto bg-gray-100 rounded-full flex items-center justify-center">
-                  <Plus className="h-8 w-8 text-gray-400" />
+                  <Search className="h-8 w-8 text-gray-400" />
                 </div>
               </div>
-              <h3 className="text-xl font-semibold mb-2">У вас пока нет проектов</h3>
+              <h3 className="text-xl font-semibold mb-2">
+                {searchTerm || statusFilter !== 'all' ? 'Проекты не найдены' : 'У вас пока нет проектов'}
+              </h3>
               <p className="text-muted-foreground mb-4">
-                Создайте свой первый проект и начните управлять задачами
+                {searchTerm || statusFilter !== 'all' 
+                  ? 'Попробуйте изменить параметры поиска или фильтры'
+                  : 'Создайте свой первый проект и начните управлять задачами'
+                }
               </p>
-              <Button onClick={handleCreateProject}>
-                <Plus className="mr-2 h-4 w-4" />
-                Создать проект
-              </Button>
+              {!searchTerm && statusFilter === 'all' && (
+                <Button onClick={handleCreateProject}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Создать проект
+                </Button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {projects.map((project) => {
+              {filteredProjects.map((project) => {
                 const progress = calculateProgress(project.tasks);
                 return (
                   <Card 
@@ -302,7 +327,7 @@ export default function Home() {
                           {statusLabels[project.status]}
                         </Badge>
                       </div>
-                      <div className="h-10"> {/* Фиксированная высота для описания */}
+                      <div className="h-10">
                         {project.description && (
                           <CardDescription className="text-sm line-clamp-2">
                             {project.description}
@@ -350,7 +375,7 @@ export default function Home() {
                       <div className="space-y-2 text-xs text-muted-foreground border-t pt-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
+                            <CalendarIcon className="h-3 w-3" />
                             <span>Начало:</span>
                           </div>
                           <span>{formatDate(project.startDate)}</span>
@@ -377,9 +402,6 @@ export default function Home() {
             </div>
           )}
         </div>
-        
-        {/* AI-ассистент */}
-        <AIAssistant />
       </AppLayout>
     </ProtectedRoute>
   );
