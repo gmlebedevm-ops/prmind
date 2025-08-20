@@ -30,7 +30,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = async () => {
     try {
       const userId = localStorage.getItem('userId');
+      console.log('Checking auth - userId from localStorage:', userId);
+      
       if (!userId) {
+        console.log('No userId in localStorage, setting loading to false');
         setLoading(false);
         return;
       }
@@ -41,10 +44,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
 
+      console.log('Auth me API response status:', response.status);
+
       if (response.ok) {
         const { user } = await response.json();
+        console.log('Auth successful, user:', user);
         setUser(user);
       } else {
+        console.log('Auth failed, removing userId from localStorage');
         localStorage.removeItem('userId');
       }
     } catch (error) {

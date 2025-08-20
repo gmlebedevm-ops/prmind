@@ -31,6 +31,7 @@ import {
   User
 } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/protected-route';
+import { AppLayout } from '@/components/layout/app-layout';
 import { useAuth } from '@/hooks/use-auth';
 
 interface AnalyticsData {
@@ -199,14 +200,13 @@ export default function AnalyticsPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background">
-        {/* Header */}
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4">
+      <AppLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold">Аналитика и отчеты</h1>
-                <p className="text-sm text-muted-foreground">
+                <h1 className="text-3xl font-bold">Аналитика и отчеты</h1>
+                <p className="text-muted-foreground">
                   Обзор проектов и задач
                 </p>
               </div>
@@ -215,10 +215,7 @@ export default function AnalyticsPage() {
               </Button>
             </div>
           </div>
-        </header>
 
-        {/* Main Content */}
-        <main className="container mx-auto px-4 py-8">
           {/* Overview Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card>
@@ -477,8 +474,8 @@ export default function AnalyticsPage() {
               </TabsContent>
             )}
           </Tabs>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     </ProtectedRoute>
   );
 }

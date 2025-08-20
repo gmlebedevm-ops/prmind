@@ -17,6 +17,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/protected-route';
+import { AppLayout } from '@/components/layout/app-layout';
 import { useAuth } from '@/hooks/use-auth';
 
 interface GanttTask {
@@ -126,9 +127,14 @@ export default function GanttPage() {
   const fetchGanttData = async () => {
     try {
       const userId = localStorage.getItem('userId');
+      if (!userId) {
+        console.error('No userId found in localStorage');
+        return;
+      }
+      
       const response = await fetch('/api/gantt', {
         headers: {
-          'X-User-ID': userId || '',
+          'X-User-ID': userId,
         },
       });
 
@@ -140,6 +146,8 @@ export default function GanttPage() {
         if (data.projects.length > 0 && !selectedProject) {
           setSelectedProject(data.projects[0].id);
         }
+      } else {
+        console.error('Failed to fetch gantt data:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Ошибка загрузки данных для Гант-диаграммы:', error);
@@ -192,17 +200,16 @@ export default function GanttPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background">
-        {/* Header */}
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4">
+      <AppLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
+                <h1 className="text-3xl font-bold flex items-center gap-2">
                   <GanttChart className="h-6 w-6" />
                   Гант-диаграмма
                 </h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground">
                   Визуализация сроков проектов и задач
                 </p>
               </div>
@@ -242,10 +249,7 @@ export default function GanttPage() {
               </div>
             </div>
           </div>
-        </header>
 
-        {/* Main Content */}
-        <main className="container mx-auto px-4 py-8">
           {projects.length === 0 ? (
             <div className="text-center py-12">
               <GanttChart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
@@ -480,8 +484,8 @@ export default function GanttPage() {
               )}
             </div>
           )}
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     </ProtectedRoute>
   );
 }

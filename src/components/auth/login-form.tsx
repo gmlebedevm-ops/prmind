@@ -122,9 +122,9 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
           <p className="text-sm font-medium mb-2">Демо-аккаунты:</p>
           <div className="space-y-1 text-xs text-muted-foreground">
-            <div><strong>Администратор:</strong> admin@projectmind.local / admin123</div>
-            <div><strong>Менеджер:</strong> manager@projectmind.local / password123</div>
-            <div><strong>Пользователь:</strong> user@projectmind.local / password123</div>
+            <div><strong>Администратор:</strong> admin@example.com / password123</div>
+            <div><strong>Менеджер:</strong> manager@example.com / password123</div>
+            <div><strong>Пользователь:</strong> user@example.com / password123</div>
           </div>
         </div>
       </CardContent>

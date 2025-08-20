@@ -49,15 +49,22 @@ export function TaskComments({ taskId, currentUserId }: TaskCommentsProps) {
   const fetchComments = async () => {
     try {
       const userId = localStorage.getItem('userId');
+      if (!userId) {
+        console.error('No userId found in localStorage');
+        return;
+      }
+      
       const response = await fetch(`/api/tasks/${taskId}/comments`, {
         headers: {
-          'X-User-ID': userId || '',
+          'X-User-ID': userId,
         },
       });
 
       if (response.ok) {
         const data = await response.json();
         setComments(data.comments);
+      } else {
+        console.error('Failed to fetch comments:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Ошибка загрузки комментариев:', error);
@@ -72,11 +79,16 @@ export function TaskComments({ taskId, currentUserId }: TaskCommentsProps) {
     setSubmitting(true);
     try {
       const userId = localStorage.getItem('userId');
+      if (!userId) {
+        console.error('No userId found in localStorage');
+        return;
+      }
+      
       const response = await fetch(`/api/tasks/${taskId}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': userId || '',
+          'X-User-ID': userId,
         },
         body: JSON.stringify({ content: newComment }),
       });
@@ -86,6 +98,8 @@ export function TaskComments({ taskId, currentUserId }: TaskCommentsProps) {
         setComments(prev => [...prev, data.comment]);
         setNewComment('');
         setShowMentions(false);
+      } else {
+        console.error('Failed to submit comment:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Ошибка отправки комментария:', error);

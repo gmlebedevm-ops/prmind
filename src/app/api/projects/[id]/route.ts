@@ -12,26 +12,60 @@ const updateProjectSchema = z.object({
 });
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/projects/[id] - Получить проект по ID
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  return requireAuth(async (request: NextRequest, user) => {
+  console.log('GET /api/projects/[id] called');
+  console.log('Raw headers from request:', Object.fromEntries(request.headers.entries()));
+  
+  // Проверяем заголовки напрямую
+  const userIdFromRequest = request.headers.get('X-User-ID') || request.headers.get('x-user-id');
+  console.log('User ID extracted from request headers:', userIdFromRequest);
+  
+  // Также проверяем query параметры как запасной вариант
+  const { searchParams } = new URL(request.url);
+  const userIdFromQuery = searchParams.get('userId');
+  console.log('User ID from query params:', userIdFromQuery);
+  
+  console.log('Params from route:', params);
+  
+  // Если нашли userId в query параметрах, добавляем его в заголовки
+  if (userIdFromQuery && !userIdFromRequest) {
+    request.headers.set('X-User-ID', userIdFromQuery);
+    console.log('Set X-User-ID header from query param:', userIdFromQuery);
+  }
+  
+  return requireAuth(request, async (request: NextRequest, user) => {
+    console.log('User authenticated:', user);
+    
     try {
-      const projectId = params.id;
+      const { id: projectId } = await params;
+      console.log('Fetching project with ID:', projectId);
 
-      const project = await db.project.findFirst({
+      // Проверяем, что пользователь имеет доступ к проекту
+      const projectMember = await db.projectMember.findFirst({
         where: {
-          id: projectId,
-          members: {
-            some: {
-              userId: user.id,
-            },
-          },
+          projectId,
+          userId: user.id,
         },
+      });
+
+      console.log('Project membership check:', projectMember);
+
+      if (!projectMember && user.role !== 'ADMIN') {
+        console.log('Access denied for user:', user.id);
+        return NextResponse.json(
+          { error: 'Доступ к проекту запрещен' },
+          { status: 403 }
+        );
+      }
+
+      const project = await db.project.findUnique({
+        where: { id: projectId },
         include: {
           members: {
             include: {
@@ -54,45 +88,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                   email: true,
                 },
               },
-              creator: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-              subtasks: {
-                select: {
-                  id: true,
-                  title: true,
-                  status: true,
-                },
-              },
-              tags: {
-                include: {
-                  tag: true,
-                },
-              },
             },
             orderBy: {
               createdAt: 'desc',
             },
           },
-          tags: {
-            include: {
-              tag: true,
-            },
-          },
-          categories: {
-            include: {
-              category: true,
-            },
-          },
         },
       });
 
+      console.log('Project found:', project ? 'Yes' : 'No');
+
       if (!project) {
         return NextResponse.json(
-          { error: 'Проект не найден или нет доступа' },
+          { error: 'Проект не найден' },
           { status: 404 }
         );
       }
@@ -110,9 +118,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PUT /api/projects/[id] - Обновить проект
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  return requireAuth(async (request: NextRequest, user) => {
+  return requireAuth(request, async (request: NextRequest, user) => {
     try {
-      const projectId = params.id;
+      const { id: projectId } = await params;
       const body = await request.json();
       const { title, description, status, startDate, endDate } = updateProjectSchema.parse(body);
 
@@ -173,7 +181,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     } catch (error) {
       if (error instanceof z.ZodError) {
         return NextResponse.json(
-          { error: 'Ошибка валидации', details: error.errors },
+          { error: 'Ошибка валидации', details: error.issues },
           { status: 400 }
         );
       }
@@ -189,9 +197,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/projects/[id] - Удалить проект
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  return requireAuth(async (request: NextRequest, user) => {
+  return requireAuth(request, async (request: NextRequest, user) => {
     try {
-      const projectId = params.id;
+      const { id: projectId } = await params;
 
       // Проверяем, что пользователь имеет право удалить проект
       const projectMember = await db.projectMember.findFirst({

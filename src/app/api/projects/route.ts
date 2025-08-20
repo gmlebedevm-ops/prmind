@@ -69,6 +69,21 @@ export async function GET(request: NextRequest) {
         take: limit,
       });
 
+      // Обрабатываем данные для добавления статистики по задачам
+      const processedProjects = projects.map(project => {
+        const taskStats = {
+          total: project.tasks.length,
+          completed: project.tasks.filter(task => task.status === 'DONE').length,
+          inProgress: project.tasks.filter(task => task.status === 'IN_PROGRESS').length,
+          pending: project.tasks.filter(task => task.status === 'TODO').length,
+        };
+
+        return {
+          ...project,
+          tasks: taskStats,
+        };
+      });
+
       const total = await db.project.count({
         where: {
           members: {
@@ -80,7 +95,7 @@ export async function GET(request: NextRequest) {
       });
 
       return NextResponse.json({
-        projects,
+        projects: processedProjects,
         pagination: {
           page,
           limit,
@@ -132,6 +147,12 @@ export async function POST(request: NextRequest) {
               },
             },
           },
+          tasks: {
+            select: {
+              id: true,
+              status: true,
+            },
+          },
           _count: {
             select: {
               tasks: true,
@@ -141,10 +162,23 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Обрабатываем данные для добавления статистики по задачам
+      const taskStats = {
+        total: project.tasks.length,
+        completed: project.tasks.filter(task => task.status === 'DONE').length,
+        inProgress: project.tasks.filter(task => task.status === 'IN_PROGRESS').length,
+        pending: project.tasks.filter(task => task.status === 'TODO').length,
+      };
+
+      const processedProject = {
+        ...project,
+        tasks: taskStats,
+      };
+
       return NextResponse.json(
         {
           message: 'Проект успешно создан',
-          project,
+          project: processedProject,
         },
         { status: 201 }
       );

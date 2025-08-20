@@ -23,7 +23,9 @@ import {
   BarChart3,
   CheckSquare,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -115,21 +117,103 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
   const [chatHistory, setChatHistory] = useState<AIChat[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  setTimeout(() => {
+    const container = document.getElementById('messages-container');
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, 150);
+};
+
+  // Добавляем кастомные стили для прокрутки
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      #messages-container {
+        scrollbar-width: thin;
+        scrollbar-color: #c1c1c1 #f1f1f1;
+      }
+      #messages-container::-webkit-scrollbar {
+        width: 8px;
+      }
+      #messages-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+      }
+      #messages-container::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+        border: 2px solid #f1f1f1;
+      }
+      #messages-container::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+      }
+      /* Убрать скроллбар в Firefox */
+      #messages-container {
+        scrollbar-width: none;
+      }
+      #messages-container::-webkit-scrollbar {
+        display: block;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Дополнительная прокрутка при изменении размера окна и при загрузке
+  useEffect(() => {
+    const handleResize = () => {
+      scrollToBottom();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      scrollToBottom();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
       loadChatHistory();
     }
   }, [isOpen, projectId, taskId]);
+
+  // Обработка клавиши Escape для выхода из полноэкранного режима
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+
+    if (isFullscreen) {
+      document.addEventListener('keydown', handleKeyDown);
+      // Блокируем прокрутку страницы в полноэкранном режиме
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (isFullscreen) {
+        document.body.style.overflow = '';
+      }
+    };
+  }, [isFullscreen]);
 
   const loadChatHistory = async () => {
     try {
@@ -276,6 +360,10 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
     setMessages([]);
     setCurrentChatId(null);
     setShowHistory(false);
+    // При выходе из полноэкранного режима при создании нового чата
+    if (isFullscreen) {
+      setIsFullscreen(false);
+    }
   };
 
   const deleteChat = async (chatId: string) => {
@@ -314,8 +402,14 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-4 right-4 rounded-full p-4 shadow-lg bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white ${className}`}
+        className={`
+          fixed bottom-4 right-4 rounded-full p-4 shadow-lg 
+          bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 
+          text-white z-40 transition-all duration-200 hover:scale-110
+          ${className}
+        `}
         size="lg"
+        title="Открыть AI-ассистента"
       >
         <Bot className="h-6 w-6" />
         <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></span>
@@ -324,9 +418,19 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
   }
 
   return (
-    <div className={`fixed bottom-4 right-4 w-[500px] h-[700px] bg-background border rounded-lg shadow-2xl flex flex-col ${className}`}>
+    <div className={`
+      ${isFullscreen 
+        ? 'fixed inset-0 w-full h-full z-50 rounded-none' 
+        : 'fixed bottom-4 right-4 w-[500px] h-[700px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] rounded-lg overflow-hidden'
+      }
+      bg-background border shadow-2xl flex flex-col ${className}
+    `}>
       {/* Header */}
-      <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-purple-50 flex items-center justify-between">
+      <div className={`
+        p-4 border-b bg-gradient-to-r from-blue-50 to-purple-50 
+        flex items-center justify-between
+        ${isFullscreen ? 'rounded-t-lg' : ''}
+      `}>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Bot className="h-5 w-5 text-blue-600" />
@@ -347,11 +451,12 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setShowHistory(!showHistory)}
+            className="hidden sm:flex"
           >
             <MessageSquare className="h-4 w-4" />
           </Button>
@@ -359,13 +464,23 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
             variant="ghost"
             size="sm"
             onClick={startNewChat}
+            className="hidden sm:flex"
           >
             Новое
           </Button>
           <Button
             variant="ghost"
             size="sm"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            title={isFullscreen ? "Свернуть" : "Развернуть"}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setIsOpen(false)}
+            title="Закрыть"
           >
             ×
           </Button>
@@ -373,7 +488,7 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 relative min-h-0">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="chat" className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
@@ -442,11 +557,12 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
           </div>
         )}
 
-        <TabsContent value="chat" className="flex-1 flex flex-col m-0">
-          {/* Messages */}
-          <div className="flex-1 overflow-hidden">
-            <ScrollArea className="h-full p-4">
-              <div className="space-y-4">
+        <TabsContent value="chat" className="relative h-full m-0 p-0">
+          {/* Messages area with absolute positioning */}
+          <div className="absolute inset-0 flex flex-col pt-2 pb-16">
+            {/* Scrollable messages container */}
+            <div className="flex-1 overflow-y-auto px-4" id="messages-container">
+              <div className="space-y-4 pb-4">
                 {messages.length === 0 ? (
                   <div className="text-center py-8">
                     <div className="relative mb-4">
@@ -494,11 +610,14 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
                         </div>
                       )}
                       <div
-                        className={`max-w-[80%] rounded-lg p-3 ${
-                          message.role === 'user'
+                        className={`
+                          max-w-[80%] rounded-lg p-3 break-words
+                          ${message.role === 'user'
                             ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
                             : 'bg-muted border'
-                        }`}
+                          }
+                          ${isFullscreen ? 'max-w-[70%] lg:max-w-[60%]' : ''}
+                        `}
                       >
                         <p className="text-sm whitespace-pre-wrap leading-relaxed">
                           {message.content}
@@ -526,14 +645,14 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
                     </div>
                   </div>
                 )}
-                <div ref={messagesEndRef} />
+              <div ref={messagesEndRef} className="h-8" />
               </div>
-            </ScrollArea>
+            </div>
           </div>
 
-          {/* Input */}
-          <div className="p-4 border-t bg-gray-50">
-            <div className="flex gap-2">
+          {/* Fixed input area at the bottom */}
+          <div className="absolute bottom-0 left-0 right-0 border-t bg-gray-50 p-4 z-10">
+            <div className="flex gap-2 max-w-4xl mx-auto">
               <Input
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
@@ -546,7 +665,12 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
                 onClick={sendMessage}
                 disabled={!inputMessage.trim() || isLoading}
                 size="sm"
-                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                className={`
+                  bg-gradient-to-r from-blue-500 to-purple-600 
+                  hover:from-blue-600 hover:to-purple-700 
+                  flex-shrink-0 h-10 w-10
+                  ${isFullscreen ? 'px-4' : 'px-3'}
+                `}
               >
                 <Send className="h-4 w-4" />
               </Button>
@@ -554,9 +678,9 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
           </div>
         </TabsContent>
 
-        <TabsContent value="actions" className="flex-1 m-0">
-          <ScrollArea className="h-full p-4">
-            <div className="space-y-4">
+        <TabsContent value="actions" className="relative h-full m-0 p-0">
+          <div className="h-full overflow-y-auto p-4">
+            <div className="space-y-4 max-w-4xl mx-auto">
               <div className="text-center mb-6">
                 <h3 className="text-lg font-semibold mb-2">Быстрые действия</h3>
                 <p className="text-sm text-muted-foreground">
@@ -573,16 +697,16 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
                   >
                     <CardContent className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                           {action.icon}
                         </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm">{action.label}</h4>
-                          <p className="text-xs text-muted-foreground mt-1">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm truncate">{action.label}</h4>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                             {action.prompt}
                           </p>
                         </div>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" className="flex-shrink-0">
                           <Plus className="h-4 w-4" />
                         </Button>
                       </div>
@@ -604,7 +728,7 @@ export function AIAssistant({ projectId, taskId, className }: AIAssistantProps) 
                 </ul>
               </div>
             </div>
-          </ScrollArea>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

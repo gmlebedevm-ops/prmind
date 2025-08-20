@@ -13,8 +13,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProtectedRoute } from '@/components/auth/protected-route';
+import { AppLayout } from '@/components/layout/app-layout';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/use-auth';
 
 interface Project {
   id: string;
@@ -43,6 +45,7 @@ export default function CreateTaskPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId');
+  const { user } = useAuth();
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,9 +71,11 @@ export default function CreateTaskPage() {
   const selectedProjectId = watch('projectId');
 
   useEffect(() => {
-    fetchProjects();
-    fetchUsers();
-  }, []);
+    if (user?.id) {
+      fetchProjects();
+      fetchUsers();
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (projectId) {
@@ -80,16 +85,23 @@ export default function CreateTaskPage() {
 
   const fetchProjects = async () => {
     try {
-      const userId = localStorage.getItem('userId');
+      // Используем только user.id из контекста аутентификации
+      if (!user?.id) {
+        console.error('No user available for fetchProjects');
+        return;
+      }
+      
       const response = await fetch('/api/projects', {
         headers: {
-          'X-User-ID': userId || '',
+          'X-User-ID': user.id,
         },
       });
 
       if (response.ok) {
         const data = await response.json();
         setProjects(data.projects);
+      } else {
+        console.error('Failed to fetch projects:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Ошибка загрузки проектов:', error);
@@ -98,16 +110,23 @@ export default function CreateTaskPage() {
 
   const fetchUsers = async () => {
     try {
-      const userId = localStorage.getItem('userId');
+      // Используем только user.id из контекста аутентификации
+      if (!user?.id) {
+        console.error('No user available for fetchUsers');
+        return;
+      }
+      
       const response = await fetch('/api/users', {
         headers: {
-          'X-User-ID': userId || '',
+          'X-User-ID': user.id,
         },
       });
 
       if (response.ok) {
         const data = await response.json();
         setUsers(data.users);
+      } else {
+        console.error('Failed to fetch users:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Ошибка загрузки пользователей:', error);
@@ -121,12 +140,16 @@ export default function CreateTaskPage() {
     setError(null);
 
     try {
-      const userId = localStorage.getItem('userId');
+      // Используем только user.id из контекста аутентификации
+      if (!user?.id) {
+        throw new Error('Пользователь не аутентифицирован');
+      }
+      
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': userId || '',
+          'X-User-ID': user.id,
         },
         body: JSON.stringify(data),
       });
@@ -157,10 +180,9 @@ export default function CreateTaskPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background">
-        {/* Header */}
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4">
+      <AppLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8">
             <div className="flex items-center gap-4">
               <Link href={projectId ? `/projects/${projectId}` : '/'}>
                 <Button variant="ghost" size="sm">
@@ -168,13 +190,10 @@ export default function CreateTaskPage() {
                   Назад
                 </Button>
               </Link>
-              <h1 className="text-2xl font-bold">Создание задачи</h1>
+              <h1 className="text-3xl font-bold">Создание задачи</h1>
             </div>
           </div>
-        </header>
 
-        {/* Main Content */}
-        <main className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <Card>
               <CardHeader>
@@ -325,8 +344,8 @@ export default function CreateTaskPage() {
               </CardContent>
             </Card>
           </div>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     </ProtectedRoute>
   );
 }

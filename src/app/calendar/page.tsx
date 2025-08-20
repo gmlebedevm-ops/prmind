@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarIcon, Filter, RefreshCw } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/protected-route';
+import { AppLayout } from '@/components/layout/app-layout';
 import { useAuth } from '@/hooks/use-auth';
 
 interface CalendarEvent {
@@ -177,17 +178,16 @@ export default function CalendarPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background">
-        {/* Header */}
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4">
+      <AppLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
+                <h1 className="text-3xl font-bold flex items-center gap-2">
                   <CalendarIcon className="h-6 w-6" />
                   Календарь задач
                 </h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground">
                   Просмотр задач по датам
                 </p>
               </div>
@@ -211,10 +211,7 @@ export default function CalendarPage() {
               </div>
             </div>
           </div>
-        </header>
 
-        {/* Main Content */}
-        <main className="container mx-auto px-4 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Календарь событий */}
             <div className="lg:col-span-2">
@@ -381,8 +378,8 @@ export default function CalendarPage() {
               </Card>
             </div>
           </div>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     </ProtectedRoute>
   );
 }

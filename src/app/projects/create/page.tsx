@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProtectedRoute } from '@/components/auth/protected-route';
+import { AppLayout } from '@/components/layout/app-layout';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -50,11 +51,15 @@ export default function CreateProjectPage() {
 
     try {
       const userId = localStorage.getItem('userId');
+      if (!userId) {
+        throw new Error('Пользователь не аутентифицирован');
+      }
+      
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': userId || '',
+          'X-User-ID': userId,
         },
         body: JSON.stringify(data),
       });
@@ -75,10 +80,9 @@ export default function CreateProjectPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background">
-        {/* Header */}
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4">
+      <AppLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8">
             <div className="flex items-center gap-4">
               <Link href="/">
                 <Button variant="ghost" size="sm">
@@ -86,13 +90,10 @@ export default function CreateProjectPage() {
                   Назад
                 </Button>
               </Link>
-              <h1 className="text-2xl font-bold">Создание проекта</h1>
+              <h1 className="text-3xl font-bold">Создание проекта</h1>
             </div>
           </div>
-        </header>
 
-        {/* Main Content */}
-        <main className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <Card>
               <CardHeader>
@@ -200,8 +201,8 @@ export default function CreateProjectPage() {
               </CardContent>
             </Card>
           </div>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     </ProtectedRoute>
   );
 }

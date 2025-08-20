@@ -11,6 +11,7 @@ import { AIAssistant } from '@/components/ai/ai-assistant';
 import { ProjectAIAssistant } from '@/components/ai/project-ai-assistant';
 import { ArrowLeft, Plus, Users, Calendar, CheckCircle, Settings } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/use-auth';
 
 interface Project {
   id: string;
@@ -104,25 +105,55 @@ export default function ProjectPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
+    // Ждем, пока проверка аутентификации завершится
+    if (authLoading) {
+      return;
+    }
+    
+    if (!user) {
+      setError('Пользователь не аутентифицирован');
+      setLoading(false);
+      return;
+    }
+    
     if (projectId) {
       fetchProject();
+    } else {
+      setError('ID проекта не указан');
+      setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, authLoading, user]);
 
   const fetchProject = async () => {
     try {
-      const userId = localStorage.getItem('userId');
-      const response = await fetch(`/api/projects/${projectId}`, {
+      // Используем user.id вместо localStorage для большей надежности
+      const userId = user?.id || localStorage.getItem('userId');
+      console.log('Fetching project - userId from auth/user:', user?.id);
+      console.log('Fetching project - userId from localStorage:', localStorage.getItem('userId'));
+      console.log('Fetching project - final userId:', userId);
+      
+      if (!userId) {
+        setError('Пользователь не аутентифицирован');
+        setLoading(false);
+        return;
+      }
+      
+      const response = await fetch(`/api/projects/${projectId}?userId=${userId}`, {
         headers: {
-          'X-User-ID': userId || '',
+          'X-User-ID': userId,
         },
       });
-
+      
+      console.log('Project API response status:', response.status);
+      
       if (!response.ok) {
         if (response.status === 404) {
           setError('Проект не найден');
+        } else if (response.status === 401) {
+          setError('Ошибка аутентификации');
         } else {
           setError('Ошибка загрузки проекта');
         }
@@ -130,8 +161,10 @@ export default function ProjectPage() {
       }
 
       const data = await response.json();
+      console.log('Project data received:', data);
       setProject(data.project);
     } catch (err) {
+      console.error('Error fetching project:', err);
       setError('Ошибка загрузки проекта');
     } finally {
       setLoading(false);
@@ -146,7 +179,7 @@ export default function ProjectPage() {
     router.push(`/tasks/${taskId}`);
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <ProtectedRoute>
         <div className="min-h-screen flex items-center justify-center">
@@ -234,7 +267,52 @@ export default function ProjectPage() {
             </TabsList>
 
             <TabsContent value="tasks" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Задачи проекта</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Управление задачами в различных режимах отображения
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link href={`/tasks?projectId=${projectId}`}>
+                    <Button variant="outline">
+                      Полное управление
+                    </Button>
+                  </Link>
+                  <Button onClick={handleCreateTask}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Создать задачу
+                  </Button>
+                </div>
+              </div>
+
+              {/* Быстрая статистика */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {Object.entries(taskStatusLabels).map(([status, label]) => {
+                  const count = project.tasks.filter(t => t.status === status).length;
+                  const percentage = project.tasks.length > 0 ? Math.round((count / project.tasks.length) * 100) : 0;
+                  
+                  return (
+                    <Card key={status} className="text-center">
+                      <CardContent className="pt-4">
+                        <div className="text-2xl font-bold mb-1">{count}</div>
+                        <div className="text-xs text-muted-foreground mb-2">{label}</div>
+                        <div className="w-full bg-gray-200 rounded-full h-1">
+                          <div 
+                            className={`h-1 rounded-full ${taskStatusColors[status as keyof typeof taskStatusColors].split(' ')[0]}`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">{percentage}%</div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {/* Канбан-доска для задач проекта */}
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {Object.entries(tasksByStatus).map(([status, tasks]) => (
                   <div key={status} className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -245,7 +323,7 @@ export default function ProjectPage() {
                         {tasks.length}
                       </Badge>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
                       {tasks.map((task) => (
                         <Card 
                           key={task.id} 
@@ -253,7 +331,7 @@ export default function ProjectPage() {
                           onClick={() => handleTaskClick(task.id)}
                         >
                           <CardHeader className="pb-2">
-                            <CardTitle className="text-sm">{task.title}</CardTitle>
+                            <CardTitle className="text-sm leading-tight">{task.title}</CardTitle>
                           </CardHeader>
                           <CardContent className="pt-0">
                             <div className="flex items-center justify-between gap-2">
@@ -278,7 +356,7 @@ export default function ProjectPage() {
                         </Card>
                       ))}
                       {tasks.length === 0 && (
-                        <div className="text-center py-4 text-sm text-muted-foreground">
+                        <div className="text-center py-4 text-sm text-muted-foreground border-2 border-dashed rounded-lg">
                           Нет задач
                         </div>
                       )}

@@ -118,9 +118,14 @@ export default function TaskPage() {
   const fetchTask = async () => {
     try {
       const userId = localStorage.getItem('userId');
+      if (!userId) {
+        setError('Пользователь не аутентифицирован');
+        return;
+      }
+      
       const response = await fetch(`/api/tasks/${taskId}`, {
         headers: {
-          'X-User-ID': userId || '',
+          'X-User-ID': userId,
         },
       });
 

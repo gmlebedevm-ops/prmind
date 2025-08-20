@@ -4,21 +4,29 @@ import { db } from '@/lib/db';
 export interface AuthUser {
   id: string;
   email: string;
-  name?: string;
+  name?: string | null;
   role: 'ADMIN' | 'MANAGER' | 'USER';
 }
 
-export async function getAuthUser(request: NextRequest): Promise<AuthUser | null> {
+export async function getAuthUser(headers: Headers | null): Promise<AuthUser | null> {
   try {
-    // В реальном приложении здесь нужно извлечь JWT токен из заголовка
-    // и проверить его валидность. Для простоты примера используем заголовок X-User-ID
-    
-    const userId = request.headers.get('X-User-ID');
+    // Проверяем заголовок в разных регистрах
+    let userId = headers?.get('X-User-ID') || headers?.get('x-user-id') || headers?.get('x-User-ID');
+    console.log('Auth check - userId from header:', userId);
     
     if (!userId) {
+      console.log('No userId found in headers');
+      // Выводим все заголовки для отладки
+      if (headers) {
+        console.log('Available headers:');
+        headers.forEach((value, key) => {
+          console.log(`  ${key}: ${value}`);
+        });
+      }
       return null;
     }
 
+    // Проверяем пользователя в базе данных
     const user = await db.user.findUnique({
       where: { id: userId },
       select: {
@@ -29,6 +37,11 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
       },
     });
 
+    console.log('User found in database:', user ? 'Yes' : 'No');
+    if (user) {
+      console.log('User details:', { id: user.id, email: user.email, role: user.role });
+    }
+
     return user;
   } catch (error) {
     console.error('Ошибка аутентификации:', error);
@@ -38,7 +51,7 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
 
 export async function requireAuth(request: NextRequest, handler: (request: NextRequest, user: AuthUser) => Promise<NextResponse>): Promise<NextResponse> {
   try {
-    const user = await getAuthUser(request);
+    const user = await getAuthUser(request.headers);
     
     if (!user) {
       return NextResponse.json(

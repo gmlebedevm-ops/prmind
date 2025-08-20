@@ -127,6 +127,125 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   });
 }
 
+// PATCH /api/tasks/[id] - Обновить задачу (частичное обновление)
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  return requireAuth(async (request: NextRequest, user) => {
+    try {
+      const taskId = params.id;
+      const body = await request.json();
+      const {
+        title,
+        description,
+        status,
+        priority,
+        assigneeId,
+        dueDate,
+        startDate,
+      } = updateTaskSchema.parse(body);
+
+      // Проверяем, что пользователь имеет доступ к задаче
+      const task = await db.task.findFirst({
+        where: {
+          id: taskId,
+          project: {
+            members: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+        },
+      });
+
+      if (!task) {
+        return NextResponse.json(
+          { error: 'Задача не найдена или нет доступа' },
+          { status: 404 }
+        );
+      }
+
+      const updateData: any = {};
+      if (title !== undefined) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (status !== undefined) {
+        updateData.status = status;
+        // Если задача завершена, устанавливаем дату завершения
+        if (status === 'DONE') {
+          updateData.completedAt = new Date();
+        } else {
+          updateData.completedAt = null;
+        }
+      }
+      if (priority !== undefined) updateData.priority = priority;
+      if (assigneeId !== undefined) updateData.assigneeId = assigneeId;
+      if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
+      if (startDate !== undefined) updateData.startDate = startDate ? new Date(startDate) : null;
+
+      const updatedTask = await db.task.update({
+        where: { id: taskId },
+        data: updateData,
+        include: {
+          project: {
+            select: {
+              id: true,
+              title: true,
+            },
+          },
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          creator: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          subtasks: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+            },
+          },
+          parentTask: {
+            select: {
+              id: true,
+              title: true,
+            },
+          },
+          tags: {
+            include: {
+              tag: true,
+            },
+          },
+        },
+      });
+
+      return NextResponse.json({
+        message: 'Задача успешно обновлена',
+        task: updatedTask,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          { error: 'Ошибка валидации', details: error.errors },
+          { status: 400 }
+        );
+      }
+
+      console.error('Ошибка обновления задачи:', error);
+      return NextResponse.json(
+        { error: 'Внутренняя ошибка сервера' },
+        { status: 500 }
+      );
+    }
+  });
+}
+
 // PUT /api/tasks/[id] - Обновить задачу
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   return requireAuth(async (request: NextRequest, user) => {

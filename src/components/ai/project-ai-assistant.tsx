@@ -106,11 +106,16 @@ export function ProjectAIAssistant({ projectId, projectName, className }: Projec
     setIsCreating(true);
     try {
       const userId = localStorage.getItem('userId');
+      if (!userId) {
+        alert('Пользователь не аутентифицирован');
+        return;
+      }
+      
       const response = await fetch('/api/ai/create-task', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': userId || '',
+          'X-User-ID': userId,
         },
         body: JSON.stringify({
           description: taskDescription,
@@ -143,11 +148,16 @@ export function ProjectAIAssistant({ projectId, projectName, className }: Projec
   const handleAnalyzeProgress = async () => {
     try {
       const userId = localStorage.getItem('userId');
+      if (!userId) {
+        alert('Пользователь не аутентифицирован');
+        return;
+      }
+      
       const response = await fetch('/api/ai/analyze-project', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': userId || '',
+          'X-User-ID': userId,
         },
         body: JSON.stringify({ projectId }),
       });
@@ -169,11 +179,16 @@ export function ProjectAIAssistant({ projectId, projectName, className }: Projec
   const handleGenerateReport = async () => {
     try {
       const userId = localStorage.getItem('userId');
+      if (!userId) {
+        alert('Пользователь не аутентифицирован');
+        return;
+      }
+      
       const response = await fetch('/api/ai/generate-report', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': userId || '',
+          'X-User-ID': userId,
         },
         body: JSON.stringify({
           projectId,

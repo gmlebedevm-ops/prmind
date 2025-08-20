@@ -6,9 +6,10 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Users, Calendar, CheckCircle, BarChart3, Calendar as CalendarIcon, GanttChart, LogIn, Settings } from 'lucide-react';
+import { Plus, Users, Calendar, CheckCircle, BarChart3, Calendar as CalendarIcon, GanttChart, LogIn, Settings, ListTodo, Clock, Target } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/protected-route';
 import { AIAssistant } from '@/components/ai/ai-assistant';
+import { AppLayout } from '@/components/layout/app-layout';
 import Link from 'next/link';
 
 interface Project {
@@ -16,11 +17,19 @@ interface Project {
   title: string;
   description?: string;
   status: 'PLANNING' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
+  startDate?: string;
+  endDate?: string;
   createdAt: string;
   updatedAt: string;
   _count: {
     tasks: number;
     members: number;
+  };
+  tasks?: {
+    total: number;
+    completed: number;
+    inProgress: number;
+    pending: number;
   };
 }
 
@@ -40,6 +49,27 @@ const statusLabels = {
   CANCELLED: 'Отменен',
 };
 
+const calculateProgress = (tasks: Project['tasks']) => {
+  if (!tasks || tasks.total === 0) return 0;
+  return Math.round((tasks.completed / tasks.total) * 100);
+};
+
+const getProgressColor = (progress: number) => {
+  if (progress === 0) return 'bg-gray-200';
+  if (progress < 30) return 'bg-red-500';
+  if (progress < 70) return 'bg-yellow-500';
+  return 'bg-green-500';
+};
+
+const formatDate = (dateString?: string) => {
+  if (!dateString) return 'Не указана';
+  return new Date(dateString).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+};
+
 export default function Home() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
@@ -54,16 +84,23 @@ export default function Home() {
 
   const fetchProjects = async () => {
     try {
-      const userId = localStorage.getItem('userId');
+      // Используем только user.id из контекста аутентификации
+      if (!user?.id) {
+        console.error('No user available for fetchProjects');
+        return;
+      }
+      
       const response = await fetch('/api/projects', {
         headers: {
-          'X-User-ID': userId || '',
+          'X-User-ID': user.id,
         },
       });
 
       if (response.ok) {
         const data = await response.json();
         setProjects(data.projects);
+      } else {
+        console.error('Failed to fetch projects:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Ошибка загрузки проектов:', error);
@@ -149,15 +186,15 @@ export default function Home() {
             <div className="space-y-3">
               <div className="p-3 bg-blue-50 rounded-lg">
                 <p className="font-medium text-sm">Администратор</p>
-                <p className="text-xs text-muted-foreground">admin@projectmind.local / admin123</p>
+                <p className="text-xs text-muted-foreground">admin@example.com / password123</p>
               </div>
               <div className="p-3 bg-green-50 rounded-lg">
                 <p className="font-medium text-sm">Менеджер</p>
-                <p className="text-xs text-muted-foreground">manager@projectmind.local / password123</p>
+                <p className="text-xs text-muted-foreground">manager@example.com / password123</p>
               </div>
               <div className="p-3 bg-purple-50 rounded-lg">
                 <p className="font-medium text-sm">Пользователь</p>
-                <p className="text-xs text-muted-foreground">user@projectmind.local / password123</p>
+                <p className="text-xs text-muted-foreground">user@example.com / password123</p>
               </div>
             </div>
           </CardContent>
@@ -169,73 +206,58 @@ export default function Home() {
   // Если пользователь аутентифицирован, показываем дашборд
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background">
-        {/* Header */}
-        <header className="border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">ProjectMind</h1>
-              <p className="text-sm text-muted-foreground">
-                Добро пожаловать, {user.name || user.email}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <Link href="/analytics">
-                <Button variant="outline">
-                  <BarChart3 className="mr-2 h-4 w-4" />
-                  Аналитика
-                </Button>
-              </Link>
-              <Link href="/calendar">
-                <Button variant="outline">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  Календарь
-                </Button>
-              </Link>
-              <Link href="/gantt">
-                <Button variant="outline">
-                  <GanttChart className="mr-2 h-4 w-4" />
-                  Гант-диаграмма
-                </Button>
-              </Link>
-              <Link href="/ai-settings">
-                <Button variant="outline">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Настройки AI
-                </Button>
-              </Link>
-              <Button onClick={handleCreateProject}>
-                <Plus className="mr-2 h-4 w-4" />
-                Создать проект
-              </Button>
-              <Button variant="outline" onClick={logout}>
-                Выйти
-              </Button>
-            </div>
-          </div>
-        </header>
-
+      <AppLayout>
         {/* Main Content */}
-        <main className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-8">
           <div className="mb-8">
-            <h2 className="text-3xl font-bold mb-2">Мои проекты</h2>
-            <p className="text-muted-foreground">
-              Управляйте вашими проектами и задачами
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-3xl font-bold mb-2">Мои проекты</h2>
+                <p className="text-muted-foreground">
+                  Управляйте вашими проектами и задачами
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/tasks">
+                  <Button variant="outline">
+                    <ListTodo className="mr-2 h-4 w-4" />
+                    Все задачи
+                  </Button>
+                </Link>
+                <Button onClick={handleCreateProject}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Создать проект
+                </Button>
+              </div>
+            </div>
           </div>
 
           {projectsLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {[...Array(3)].map((_, i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardHeader>
-                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                <Card key={i} className="animate-pulse h-full flex flex-col">
+                  <CardHeader className="pb-3 flex-shrink-0">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2 mb-2"></div>
+                    <div className="h-10">
+                      <div className="h-3 bg-gray-200 rounded"></div>
+                    </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-4 flex-grow flex flex-col justify-between">
                     <div className="space-y-2">
                       <div className="h-3 bg-gray-200 rounded"></div>
-                      <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                      <div className="h-2 bg-gray-200 rounded w-full"></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="h-3 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded"></div>
+                    </div>
+                    <div className="space-y-2 border-t pt-3">
+                      <div className="h-3 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded"></div>
                     </div>
                   </CardContent>
                 </Card>
@@ -258,53 +280,101 @@ export default function Home() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.map((project) => (
-                <Card 
-                  key={project.id} 
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => handleProjectClick(project.id)}
-                >
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg">{project.title}</CardTitle>
-                      <Badge className={statusColors[project.status]}>
-                        {statusLabels[project.status]}
-                      </Badge>
-                    </div>
-                    {project.description && (
-                      <CardDescription className="line-clamp-2">
-                        {project.description}
-                      </CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1">
-                          <CheckCircle className="h-4 w-4" />
-                          <span>{project._count.tasks} задач</span>
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {projects.map((project) => {
+                const progress = calculateProgress(project.tasks);
+                return (
+                  <Card 
+                    key={project.id} 
+                    className="cursor-pointer hover:shadow-md transition-shadow h-full flex flex-col"
+                    onClick={() => handleProjectClick(project.id)}
+                  >
+                    <CardHeader className="pb-3 flex-shrink-0">
+                      <div className="flex items-start justify-between mb-2">
+                        <CardTitle className="text-lg leading-tight pr-2">{project.title}</CardTitle>
+                        <Badge className={`${statusColors[project.status]} shrink-0 text-xs`}>
+                          {statusLabels[project.status]}
+                        </Badge>
+                      </div>
+                      <div className="h-10"> {/* Фиксированная высота для описания */}
+                        {project.description && (
+                          <CardDescription className="text-sm line-clamp-2">
+                            {project.description}
+                          </CardDescription>
+                        )}
+                      </div>
+                    </CardHeader>
+                    
+                    <CardContent className="space-y-4 flex-grow flex flex-col justify-between">
+                      {/* Прогресс проекта */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Прогресс</span>
+                          <span className="text-sm text-muted-foreground">{progress}%</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Users className="h-4 w-4" />
-                          <span>{project._count.members} участников</span>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(progress)}`}
+                            style={{ width: `${progress}%` }}
+                          />
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>{new Date(project.createdAt).toLocaleDateString('ru-RU')}</span>
+
+                      {/* Статистика задач */}
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Target className="h-3 w-3" />
+                          <span>Всего: {project.tasks?.total || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-green-600">
+                          <CheckCircle className="h-3 w-3" />
+                          <span>Завершено: {project.tasks?.completed || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-blue-600">
+                          <Clock className="h-3 w-3" />
+                          <span>В работе: {project.tasks?.inProgress || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-yellow-600">
+                          <ListTodo className="h-3 w-3" />
+                          <span>В ожидании: {project.tasks?.pending || 0}</span>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                      {/* Даты и участники */}
+                      <div className="space-y-2 text-xs text-muted-foreground border-t pt-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            <span>Начало:</span>
+                          </div>
+                          <span>{formatDate(project.startDate)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <CalendarIcon className="h-3 w-3" />
+                            <span>Завершение:</span>
+                          </div>
+                          <span>{formatDate(project.endDate)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            <span>Участники:</span>
+                          </div>
+                          <span>{project._count.members}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
-        </main>
-      </div>
-      
-      {/* AI-ассистент */}
-      <AIAssistant />
+        </div>
+        
+        {/* AI-ассистент */}
+        <AIAssistant />
+      </AppLayout>
     </ProtectedRoute>
   );
 }

@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import { generateAIResponse, AISettings } from '@/lib/ai-providers';
+import { AIActionExecutor } from '@/lib/ai-actions';
 
 const chatSchema = z.object({
   message: z.string().min(1, 'Сообщение обязательно'),
@@ -212,10 +213,30 @@ export async function POST(request: NextRequest) {
         
         console.log('AI ответ получен:', JSON.stringify(aiResponse, null, 2));
 
+        // Проверяем, содержит ли ответ AI инструкции по выполнению действий
+        const action = AIActionExecutor.parseActionFromResponse(aiResponse.content);
+        let actionResult: any = null;
+        
+        if (action) {
+          console.log('Обнаружено действие AI:', JSON.stringify(action, null, 2));
+          // Выполняем действие
+          actionResult = await AIActionExecutor.executeAction(action, user.id);
+          console.log('Результат выполнения действия:', JSON.stringify(actionResult, null, 2));
+        }
+
         // Добавляем ответ ассистента
+        let finalResponse = aiResponse.content;
+        
+        // Если действие было выполнено успешно, добавляем информацию об этом
+        if (actionResult && actionResult.success) {
+          finalResponse += `\n\n✅ ${actionResult.message}`;
+        } else if (actionResult && !actionResult.success) {
+          finalResponse += `\n\n❌ ${actionResult.message}`;
+        }
+
         messages.push({
           role: 'assistant',
-          content: aiResponse.content,
+          content: finalResponse,
         });
 
         // Обновляем чат в базе данных
@@ -228,10 +249,11 @@ export async function POST(request: NextRequest) {
         });
 
         return NextResponse.json({
-          message: aiResponse.content,
+          message: finalResponse,
           chatId: aiChat.id,
           model: aiResponse.model,
           usage: aiResponse.usage,
+          actionResult: actionResult
         });
       } catch (aiError) {
         console.error('Ошибка AI:', aiError);
